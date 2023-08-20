@@ -142,8 +142,11 @@ func NewArgoServer(ctx context.Context, opts ArgoServerOpts) (*argoServer, error
 		if err != nil {
 			return nil, err
 		}
-		resourceCache = cache.NewResourceCache(opts.Clients.Kubernetes, getResourceCacheNamespace(opts))
-		resourceCache.Run(ctx.Done())
+		if ssoIf.IsRBACEnabled() {
+			// resourceCache is only used for SSO RBAC
+			resourceCache = cache.NewResourceCache(opts.Clients.Kubernetes, getResourceCacheNamespace(opts))
+			resourceCache.Run(ctx.Done())
+		}
 		log.Info("SSO enabled")
 	} else {
 		log.Info("SSO disabled")
@@ -204,7 +207,11 @@ func (as *argoServer) Run(ctx context.Context, port int, browserOpenFunc func(st
 	wfArchive := sqldb.NullWorkflowArchive
 	persistence := config.Persistence
 	if persistence != nil {
-		session, tableName, err := sqldb.CreateDBSession(as.clients.Kubernetes, as.namespace, persistence)
+		session, err := sqldb.CreateDBSession(as.clients.Kubernetes, as.namespace, persistence)
+		if err != nil {
+			log.Fatal(err)
+		}
+		tableName, err := sqldb.GetTableName(persistence)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -300,15 +307,15 @@ func (as *argoServer) newGRPCServer(instanceIDService instanceid.Service, offloa
 	}
 
 	grpcServer := grpc.NewServer(sOpts...)
-
+	wfArchiveServer := workflowarchive.NewWorkflowArchiveServer(wfArchive)
 	infopkg.RegisterInfoServiceServer(grpcServer, info.NewInfoServer(as.managedNamespace, links, columns, navColor))
 	eventpkg.RegisterEventServiceServer(grpcServer, eventServer)
 	eventsourcepkg.RegisterEventSourceServiceServer(grpcServer, eventsource.NewEventSourceServer())
 	sensorpkg.RegisterSensorServiceServer(grpcServer, sensor.NewSensorServer())
-	workflowpkg.RegisterWorkflowServiceServer(grpcServer, workflow.NewWorkflowServer(instanceIDService, offloadNodeStatusRepo))
+	workflowpkg.RegisterWorkflowServiceServer(grpcServer, workflow.NewWorkflowServer(instanceIDService, offloadNodeStatusRepo, wfArchiveServer))
 	workflowtemplatepkg.RegisterWorkflowTemplateServiceServer(grpcServer, workflowtemplate.NewWorkflowTemplateServer(instanceIDService))
 	cronworkflowpkg.RegisterCronWorkflowServiceServer(grpcServer, cronworkflow.NewCronWorkflowServer(instanceIDService))
-	workflowarchivepkg.RegisterArchivedWorkflowServiceServer(grpcServer, workflowarchive.NewWorkflowArchiveServer(wfArchive))
+	workflowarchivepkg.RegisterArchivedWorkflowServiceServer(grpcServer, wfArchiveServer)
 	clusterwftemplatepkg.RegisterClusterWorkflowTemplateServiceServer(grpcServer, clusterworkflowtemplate.NewClusterWorkflowTemplateServer(instanceIDService))
 	grpc_prometheus.Register(grpcServer)
 	return grpcServer

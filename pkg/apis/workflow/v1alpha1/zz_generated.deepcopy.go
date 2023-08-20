@@ -2496,6 +2496,11 @@ func (in *PodGC) DeepCopyInto(out *PodGC) {
 		*out = new(metav1.LabelSelector)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.DeleteDelayDuration != nil {
+		in, out := &in.DeleteDelayDuration, &out.DeleteDelayDuration
+		*out = new(metav1.Duration)
+		**out = **in
+	}
 	return
 }
 
@@ -2743,6 +2748,11 @@ func (in *S3Bucket) DeepCopyInto(out *S3Bucket) {
 	if in.EncryptionOptions != nil {
 		in, out := &in.EncryptionOptions, &out.EncryptionOptions
 		*out = new(S3EncryptionOptions)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.CASecret != nil {
+		in, out := &in.CASecret, &out.CASecret
+		*out = new(v1.SecretKeySelector)
 		(*in).DeepCopyInto(*out)
 	}
 	return

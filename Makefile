@@ -1,6 +1,10 @@
-export SHELL:=/bin/bash
+export SHELL:=bash
 export SHELLOPTS:=$(if $(SHELLOPTS),$(SHELLOPTS):)pipefail:errexit
 
+# NOTE: Please ensure dependencies are synced with the flake.nix file in dev/nix/flake.nix before upgrading
+# any external dependency. There is documentation on how to do this under the Developer Guide
+
+USE_NIX := false
 # https://stackoverflow.com/questions/4122831/disable-make-builtin-rules-and-variables-from-inside-the-make-file
 MAKEFLAGS += --no-builtin-rules
 .SUFFIXES:
@@ -30,13 +34,13 @@ KUBE_NAMESPACE        ?= argo
 MANAGED_NAMESPACE     ?= $(KUBE_NAMESPACE)
 
 # Timeout for wait conditions
-E2E_WAIT_TIMEOUT      ?= 1m
+E2E_WAIT_TIMEOUT      ?= 90s
 
 E2E_PARALLEL          ?= 20
 E2E_SUITE_TIMEOUT     ?= 15m
 
 VERSION               := latest
-DOCKER_PUSH           := false
+DOCKER_PUSH           ?= false
 
 # VERSION is the version to be used for files in manifests and should always be latest unless we are releasing
 # we assume HEAD means you are on a tag
@@ -139,7 +143,7 @@ define protoc
       -I $(CURDIR) \
       -I $(CURDIR)/vendor \
       -I $(GOPATH)/src \
-      -I $(GOPATH)/pkg/mod/github.com/gogo/protobuf@v1.3.1/gogoproto \
+      -I $(GOPATH)/pkg/mod/github.com/gogo/protobuf@v1.3.2/gogoproto \
       -I $(GOPATH)/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.16.0/third_party/googleapis \
       --gogofast_out=plugins=grpc:$(GOPATH)/src \
       --grpc-gateway_out=logtostderr=true:$(GOPATH)/src \
@@ -161,7 +165,10 @@ ui/dist/app/index.html: $(shell find ui/src -type f && find ui -maxdepth 1 -type
 	JOBS=max yarn --cwd ui build
 
 $(GOPATH)/bin/staticfiles:
-	go install bou.ke/staticfiles@dd04075
+# update this in Nix when updating it here
+ifneq ($(USE_NIX), true)
+	go install bou.ke/staticfiles@dd04075 
+endif
 
 ifeq ($(STATIC_FILES),true)
 server/static/files.go: $(GOPATH)/bin/staticfiles ui/dist/app/index.html
@@ -250,8 +257,8 @@ argoexec-image:
 .PHONY: codegen
 codegen: types swagger manifests $(GOPATH)/bin/mockery docs/fields.md docs/cli/argo.md
 	go generate ./...
-	make --directory sdks/java generate
-	make --directory sdks/python generate
+	make --directory sdks/java USE_NIX=$(USE_NIX) generate
+	make --directory sdks/python USE_NIX=$(USE_NIX) generate
 
 .PHONY: check-pwd
 check-pwd:
@@ -281,27 +288,60 @@ swagger: \
 
 
 $(GOPATH)/bin/mockery:
-	go install github.com/vektra/mockery/v2@v2.10.0
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
+	go install github.com/vektra/mockery/v2@v2.26.0
+endif
 $(GOPATH)/bin/controller-gen:
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
 	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.1
+endif
 $(GOPATH)/bin/go-to-protobuf:
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
 	go install k8s.io/code-generator/cmd/go-to-protobuf@v0.21.5
+endif
 $(GOPATH)/src/github.com/gogo/protobuf:
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
 	[ -e $(GOPATH)/src/github.com/gogo/protobuf ] || git clone --depth 1 https://github.com/gogo/protobuf.git -b v1.3.2 $(GOPATH)/src/github.com/gogo/protobuf
+endif
 $(GOPATH)/bin/protoc-gen-gogo:
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
 	go install github.com/gogo/protobuf/protoc-gen-gogo@v1.3.2
+endif
 $(GOPATH)/bin/protoc-gen-gogofast:
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
 	go install github.com/gogo/protobuf/protoc-gen-gogofast@v1.3.2
+endif
 $(GOPATH)/bin/protoc-gen-grpc-gateway:
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
 	go install github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v1.16.0
+endif
 $(GOPATH)/bin/protoc-gen-swagger:
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
 	go install github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v1.16.0
+endif
 $(GOPATH)/bin/openapi-gen:
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
 	go install k8s.io/kube-openapi/cmd/openapi-gen@v0.0.0-20220124234850-424119656bbf
+endif
 $(GOPATH)/bin/swagger:
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
 	go install github.com/go-swagger/go-swagger/cmd/swagger@v0.28.0
+endif
 $(GOPATH)/bin/goimports:
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
 	go install golang.org/x/tools/cmd/goimports@v0.1.7
+endif
 
 /usr/local/bin/clang-format:
 ifeq (, $(shell which clang-format))
@@ -401,7 +441,7 @@ dist/manifests/%: manifests/%
 # lint/test/etc
 
 $(GOPATH)/bin/golangci-lint:
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b `go env GOPATH`/bin v1.49.0
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b `go env GOPATH`/bin v1.52.2
 
 .PHONY: lint
 lint: server/static/files.go $(GOPATH)/bin/golangci-lint
@@ -442,12 +482,33 @@ endif
 
 .PHONY: argosay
 argosay:
-	cd test/e2e/images/argosay/v2 && docker build . -t argoproj/argosay:v2
+ifeq ($(DOCKER_PUSH),true)
+	cd test/e2e/images/argosay/v2 && \
+		docker buildx build \
+			--platform linux/amd64,linux/arm64 \
+			-t argoproj/argosay:v2 \
+			--push \
+			.
+else
+	cd test/e2e/images/argosay/v2 && \
+		docker build . -t argoproj/argosay:v2
+endif
 ifeq ($(K3D),true)
 	k3d image import -c $(K3D_CLUSTER_NAME) argoproj/argosay:v2
 endif
+
+.PHONY: argosayv1
+argosayv1:
 ifeq ($(DOCKER_PUSH),true)
-	docker push argoproj/argosay:v2
+	cd test/e2e/images/argosay/v1 && \
+		docker buildx build \
+			--platform linux/amd64,linux/arm64 \
+			-t argoproj/argosay:v1 \
+			--push \
+			.
+else
+	cd test/e2e/images/argosay/v1 && \
+		docker build . -t argoproj/argosay:v1
 endif
 
 dist/argosay:
@@ -613,31 +674,44 @@ docs/cli/argo.md: $(CLI_PKGS) go.sum server/static/files.go hack/cli/main.go
 # docs
 
 /usr/local/bin/mdspell:
-	npm i -g markdown-spellcheck
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
+	npm i -g markdown-spellcheck@1.3.1
+endif
 
 .PHONY: docs-spellcheck
 docs-spellcheck: /usr/local/bin/mdspell
 	# check docs for spelling mistakes
-	mdspell --ignore-numbers --ignore-acronyms --en-us --no-suggestions --report $(shell find docs -name '*.md' -not -name upgrading.md -not -name fields.md -not -name upgrading.md -not -name executor_swagger.md -not -path '*/cli/*')
+	mdspell --ignore-numbers --ignore-acronyms --en-us --no-suggestions --report $(shell find docs -name '*.md' -not -name upgrading.md -not -name README.md -not -name fields.md -not -name upgrading.md -not -name swagger.md -not -name executor_swagger.md -not -path '*/cli/*')
 
 /usr/local/bin/markdown-link-check:
-	npm i -g markdown-link-check
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
+	npm i -g markdown-link-check@3.11.1
+endif
 
 .PHONY: docs-linkcheck
 docs-linkcheck: /usr/local/bin/markdown-link-check
 	# check docs for broken links
-	markdown-link-check -q -c .mlc_config.json $(shell find docs -name '*.md' -not -name fields.md -not -name executor_swagger.md)
+	markdown-link-check -q -c .mlc_config.json $(shell find docs -name '*.md' -not -name fields.md -not -name swagger.md -not -name executor_swagger.md)
 
 /usr/local/bin/markdownlint:
-	npm i -g  markdownlint-cli
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
+	npm i -g markdownlint-cli@0.33.0 
+endif
+
 
 .PHONY: docs-lint
 docs-lint: /usr/local/bin/markdownlint
 	# lint docs
-	markdownlint docs --fix --ignore docs/fields.md --ignore docs/executor_swagger.md --ignore docs/cli --ignore docs/walk-through/the-structure-of-workflow-specs.md
+	markdownlint docs --fix --ignore docs/fields.md --ignore docs/executor_swagger.md --ignore docs/swagger.md --ignore docs/cli --ignore docs/walk-through/the-structure-of-workflow-specs.md
 
 /usr/local/bin/mkdocs:
+# update this in Nix when upgrading it here
+ifneq ($(USE_NIX), true)
 	python -m pip install mkdocs==1.2.4 mkdocs_material==8.1.9  mkdocs-spellcheck==0.2.1
+endif
 
 .PHONY: docs
 docs: /usr/local/bin/mkdocs \
@@ -654,7 +728,7 @@ docs: /usr/local/bin/mkdocs \
 	# fix the fields.md document
 	go run -tags fields ./hack parseexamples
 	# tell the user the fastest way to edit docs
-	@echo "ℹ️ If you want to preview you docs, open site/index.html. If you want to edit them with hot-reload, run 'make docs-serve' to start mkdocs on port 8000"
+	@echo "ℹ️ If you want to preview your docs, open site/index.html. If you want to edit them with hot-reload, run 'make docs-serve' to start mkdocs on port 8000"
 
 .PHONY: docs-serve
 docs-serve: docs

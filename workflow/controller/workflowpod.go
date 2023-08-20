@@ -222,6 +222,22 @@ func (woc *wfOperationCtx) createWorkflowPod(ctx context.Context, nodeName strin
 	// container's PID and root filesystem.
 	pod.Spec.Containers = append(pod.Spec.Containers, mainCtrs...)
 
+	// Configure service account token volume for the main container when AutomountServiceAccountToken is disabled
+	if (woc.execWf.Spec.AutomountServiceAccountToken != nil && !*woc.execWf.Spec.AutomountServiceAccountToken) ||
+		(tmpl.AutomountServiceAccountToken != nil && !*tmpl.AutomountServiceAccountToken) {
+		for i, c := range pod.Spec.Containers {
+			if c.Name == common.WaitContainerName {
+				continue
+			}
+			c.VolumeMounts = append(c.VolumeMounts, apiv1.VolumeMount{
+				Name:      common.ServiceAccountTokenVolumeName,
+				MountPath: common.ServiceAccountTokenMountPath,
+				ReadOnly:  true,
+			})
+			pod.Spec.Containers[i] = c
+		}
+	}
+
 	// Configuring default container to be used with commands like "kubectl exec/logs".
 	// Select "main" container if it's available. In other case use the last container (can happent when pod created from ContainerSet).
 	defaultContainer := pod.Spec.Containers[len(pod.Spec.Containers)-1].Name
@@ -350,7 +366,7 @@ func (woc *wfOperationCtx) createWorkflowPod(ctx context.Context, nodeName strin
 		if tmpl.IsPodType() {
 			localParams[common.LocalVarPodName] = pod.Name
 		}
-		tmpl, err := common.ProcessArgs(tmpl, &wfv1.Arguments{}, woc.globalParams, localParams, false, woc.wf.Namespace, woc.controller.configMapInformer)
+		tmpl, err := common.ProcessArgs(tmpl, &wfv1.Arguments{}, woc.globalParams, localParams, false, woc.wf.Namespace, woc.controller.configMapInformer.GetIndexer())
 		if err != nil {
 			return nil, errors.Wrap(err, "", "Failed to substitute the PodSpecPatch variables")
 		}
@@ -405,7 +421,10 @@ func (woc *wfOperationCtx) createWorkflowPod(ctx context.Context, nodeName strin
 	}
 
 	// Check if the template has exceeded its timeout duration. If it hasn't set the applicable activeDeadlineSeconds
-	node := woc.wf.GetNodeByName(nodeName)
+	node, err := woc.wf.GetNodeByName(nodeName)
+	if err != nil {
+		woc.log.Warnf("couldn't retrieve node for nodeName %s, will get nil templateDeadline", nodeName)
+	}
 	templateDeadline, err := woc.checkTemplateTimeout(tmpl, node)
 	if err != nil {
 		return nil, err
@@ -818,7 +837,7 @@ func addVolumeReferences(pod *apiv1.Pod, vols []apiv1.Volume, tmpl *wfv1.Templat
 	return nil
 }
 
-// addInputArtifactVolumes sets up the artifacts volume to the pod to support input artifacts to containers.
+// addInputArtifactsVolumes sets up the artifacts volume to the pod to support input artifacts to containers.
 // In order support input artifacts, the init container shares a emptydir volume with the main container.
 // It is the responsibility of the init container to load all artifacts to the mounted emptydir location.
 // (e.g. /inputs/artifacts/CODE). The shared emptydir is mapped to the user's desired location in the main
@@ -1174,6 +1193,9 @@ func createSecretVolumesFromArtifactLocations(volMap map[string]apiv1.Volume, ar
 			sseCUsed := artifactLocation.S3.EncryptionOptions != nil && artifactLocation.S3.EncryptionOptions.EnableEncryption && artifactLocation.S3.EncryptionOptions.ServerSideCustomerKeySecret != nil
 			if sseCUsed {
 				createSecretVal(volMap, artifactLocation.S3.EncryptionOptions.ServerSideCustomerKeySecret, keyMap)
+			}
+			if artifactLocation.S3.CASecret != nil {
+				createSecretVal(volMap, artifactLocation.S3.CASecret, keyMap)
 			}
 		} else if artifactLocation.Git != nil {
 			createSecretVal(volMap, artifactLocation.Git.UsernameSecret, keyMap)

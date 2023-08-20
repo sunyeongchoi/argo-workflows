@@ -1403,7 +1403,7 @@ func schema_pkg_apis_workflow_v1alpha1_Backoff(ref common.ReferenceCallback) com
 					},
 					"maxDuration": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MaxDuration is the maximum amount of time allowed for the backoff strategy",
+							Description: "MaxDuration is the maximum amount of time allowed for a workflow in the backoff strategy",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2677,7 +2677,7 @@ func schema_pkg_apis_workflow_v1alpha1_Gauge(ref common.ReferenceCallback) commo
 				Properties: map[string]spec.Schema{
 					"value": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Value is the value of the metric",
+							Description: "Value is the value to be used in the operation with the metric's current value. If no operation is set, value is the value of the metric",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2687,6 +2687,13 @@ func schema_pkg_apis_workflow_v1alpha1_Gauge(ref common.ReferenceCallback) commo
 						SchemaProps: spec.SchemaProps{
 							Description: "Realtime emits this metric in real time if applicable",
 							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"operation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Operation defines the operation to apply with value and the metrics' current value",
+							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
@@ -3838,6 +3845,13 @@ func schema_pkg_apis_workflow_v1alpha1_Mutex(ref common.ReferenceCallback) commo
 							Format:      "",
 						},
 					},
+					"namespace": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Namespace is the namespace of the mutex, default: [namespace of workflow]",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},
@@ -4338,6 +4352,13 @@ func schema_pkg_apis_workflow_v1alpha1_OSSArtifact(ref common.ReferenceCallback)
 							Ref:         ref("github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1.OSSLifecycleRule"),
 						},
 					},
+					"useSDKCreds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "UseSDKCreds tells the driver to figure out credentials based on sdk defaults.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"key": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Key is the path in the bucket where the artifact resides",
@@ -4408,6 +4429,13 @@ func schema_pkg_apis_workflow_v1alpha1_OSSArtifactRepository(ref common.Referenc
 							Ref:         ref("github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1.OSSLifecycleRule"),
 						},
 					},
+					"useSDKCreds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "UseSDKCreds tells the driver to figure out credentials based on sdk defaults.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"keyFormat": {
 						SchemaProps: spec.SchemaProps{
 							Description: "KeyFormat is defines the format of how to store keys. Can reference workflow variables",
@@ -4474,6 +4502,13 @@ func schema_pkg_apis_workflow_v1alpha1_OSSBucket(ref common.ReferenceCallback) c
 						SchemaProps: spec.SchemaProps{
 							Description: "LifecycleRule specifies how to manage bucket's lifecycle",
 							Ref:         ref("github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1.OSSLifecycleRule"),
+						},
+					},
+					"useSDKCreds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "UseSDKCreds tells the driver to figure out credentials based on sdk defaults.",
+							Type:        []string{"boolean"},
+							Format:      "",
 						},
 					},
 				},
@@ -4695,7 +4730,7 @@ func schema_pkg_apis_workflow_v1alpha1_PodGC(ref common.ReferenceCallback) commo
 				Properties: map[string]spec.Schema{
 					"strategy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Strategy is the strategy to use. One of \"OnPodCompletion\", \"OnPodSuccess\", \"OnWorkflowCompletion\", \"OnWorkflowSuccess\"",
+							Description: "Strategy is the strategy to use. One of \"OnPodCompletion\", \"OnPodSuccess\", \"OnWorkflowCompletion\", \"OnWorkflowSuccess\". If unset, does not delete Pods",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -4706,11 +4741,17 @@ func schema_pkg_apis_workflow_v1alpha1_PodGC(ref common.ReferenceCallback) commo
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
 						},
 					},
+					"deleteDelayDuration": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DeleteDelayDuration specifies the duration before pods in the GC queue get deleted.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Duration", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
 	}
 }
 
@@ -5036,6 +5077,12 @@ func schema_pkg_apis_workflow_v1alpha1_S3Artifact(ref common.ReferenceCallback) 
 							Ref: ref("github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1.S3EncryptionOptions"),
 						},
 					},
+					"caSecret": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CASecret specifies the secret that contains the CA, used to verify the TLS connection",
+							Ref:         ref("k8s.io/api/core/v1.SecretKeySelector"),
+						},
+					},
 					"key": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Key is the key in the bucket where the artifact resides",
@@ -5121,6 +5168,12 @@ func schema_pkg_apis_workflow_v1alpha1_S3ArtifactRepository(ref common.Reference
 					"encryptionOptions": {
 						SchemaProps: spec.SchemaProps{
 							Ref: ref("github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1.S3EncryptionOptions"),
+						},
+					},
+					"caSecret": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CASecret specifies the secret that contains the CA, used to verify the TLS connection",
+							Ref:         ref("k8s.io/api/core/v1.SecretKeySelector"),
 						},
 					},
 					"keyFormat": {
@@ -5215,6 +5268,12 @@ func schema_pkg_apis_workflow_v1alpha1_S3Bucket(ref common.ReferenceCallback) co
 					"encryptionOptions": {
 						SchemaProps: spec.SchemaProps{
 							Ref: ref("github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1.S3EncryptionOptions"),
+						},
+					},
+					"caSecret": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CASecret specifies the secret that contains the CA, used to verify the TLS connection",
+							Ref:         ref("k8s.io/api/core/v1.SecretKeySelector"),
 						},
 					},
 				},
@@ -5573,6 +5632,13 @@ func schema_pkg_apis_workflow_v1alpha1_SemaphoreRef(ref common.ReferenceCallback
 							Ref:         ref("k8s.io/api/core/v1.ConfigMapKeySelector"),
 						},
 					},
+					"namespace": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Namespace is the namespace of the configmap, default: [namespace of workflow]",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},
@@ -5824,7 +5890,7 @@ func schema_pkg_apis_workflow_v1alpha1_SuspendTemplate(ref common.ReferenceCallb
 				Properties: map[string]spec.Schema{
 					"duration": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Duration is the seconds to wait before automatically resuming a template. Must be a string. Default unit is seconds. Could also be a Duration, e.g.: \"2m\", \"6h\", \"1d\"",
+							Description: "Duration is the seconds to wait before automatically resuming a template. Must be a string. Default unit is seconds. Could also be a Duration, e.g.: \"2m\", \"6h\"",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -6756,7 +6822,7 @@ func schema_pkg_apis_workflow_v1alpha1_VolumeClaimGC(ref common.ReferenceCallbac
 				Properties: map[string]spec.Schema{
 					"strategy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Strategy is the strategy to use. One of \"OnWorkflowCompletion\", \"OnWorkflowSuccess\"",
+							Description: "Strategy is the strategy to use. One of \"OnWorkflowCompletion\", \"OnWorkflowSuccess\". Defaults to \"OnWorkflowSuccess\"",
 							Type:        []string{"string"},
 							Format:      "",
 						},

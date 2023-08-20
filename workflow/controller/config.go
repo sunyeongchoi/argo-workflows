@@ -30,9 +30,12 @@ func (wfc *WorkflowController) updateConfig() error {
 	persistence := wfc.Config.Persistence
 	if persistence != nil {
 		log.Info("Persistence configuration enabled")
-		var tableName string
+		tableName, err := sqldb.GetTableName(persistence)
+		if err != nil {
+			return err
+		}
 		if wfc.session == nil {
-			session, tableName, err := sqldb.CreateDBSession(wfc.kubeclientset, wfc.namespace, persistence)
+			session, err := sqldb.CreateDBSession(wfc.kubeclientset, wfc.namespace, persistence)
 			if err != nil {
 				return err
 			}
@@ -84,7 +87,8 @@ func (wfc *WorkflowController) updateConfig() error {
 }
 
 func (wfc *WorkflowController) newRateLimiter() *rate.Limiter {
-	return rate.NewLimiter(rate.Limit(wfc.Config.GetResourceRateLimit().Limit), wfc.Config.GetResourceRateLimit().Burst)
+	rateLimiter := wfc.Config.GetResourceRateLimit()
+	return rate.NewLimiter(rate.Limit(rateLimiter.Limit), rateLimiter.Burst)
 }
 
 // executorImage returns the image to use for the workflow executor

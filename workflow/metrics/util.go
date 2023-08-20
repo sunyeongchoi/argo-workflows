@@ -91,7 +91,16 @@ func constructOrUpdateGaugeMetric(metric prometheus.Metric, metricSpec *wfv1.Pro
 	}
 
 	gauge := metric.(prometheus.Gauge)
-	gauge.Set(val)
+	switch metricSpec.Gauge.Operation {
+	case wfv1.GaugeOperationAdd:
+		gauge.Add(val)
+	case wfv1.GaugeOperationSet:
+		gauge.Set(val)
+	case wfv1.GaugeOperationSub:
+		gauge.Sub(val)
+	default:
+		gauge.Set(val)
+	}
 	return gauge, nil
 }
 
@@ -192,7 +201,7 @@ func getPodPhaseGauges() map[v1.PodPhase]prometheus.Gauge {
 }
 
 func getErrorCounters() map[ErrorCause]prometheus.Counter {
-	getOptsByPahse := func(phase ErrorCause) prometheus.CounterOpts {
+	getOptsByPhase := func(phase ErrorCause) prometheus.CounterOpts {
 		return prometheus.CounterOpts{
 			Namespace:   argoNamespace,
 			Subsystem:   workflowsSubsystem,
@@ -202,9 +211,9 @@ func getErrorCounters() map[ErrorCause]prometheus.Counter {
 		}
 	}
 	return map[ErrorCause]prometheus.Counter{
-		ErrorCauseOperationPanic:              prometheus.NewCounter(getOptsByPahse(ErrorCauseOperationPanic)),
-		ErrorCauseCronWorkflowSubmissionError: prometheus.NewCounter(getOptsByPahse(ErrorCauseCronWorkflowSubmissionError)),
-		ErrorCauseCronWorkflowSpecError:       prometheus.NewCounter(getOptsByPahse(ErrorCauseCronWorkflowSpecError)),
+		ErrorCauseOperationPanic:              prometheus.NewCounter(getOptsByPhase(ErrorCauseOperationPanic)),
+		ErrorCauseCronWorkflowSubmissionError: prometheus.NewCounter(getOptsByPhase(ErrorCauseCronWorkflowSubmissionError)),
+		ErrorCauseCronWorkflowSpecError:       prometheus.NewCounter(getOptsByPhase(ErrorCauseCronWorkflowSpecError)),
 	}
 }
 
