@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -168,14 +167,8 @@ func mergeWithArchivedWorkflows(liveWfs wfv1.WorkflowList, archivedWfs wfv1.Work
 func (s *workflowServer) ListWorkflows(ctx context.Context, req *workflowpkg.WorkflowListRequest) (*wfv1.WorkflowList, error) {
 	wfClient := auth.GetWfClient(ctx)
 
-	k8sContinue := ""
-	archivedContinue := ""
-	if strings.Contains(req.ListOptions.Continue, ",") {
-		parsedContinue := strings.Split(req.ListOptions.Continue, ",")
-		log.Error("parsedContinue : ", parsedContinue)
-		k8sContinue = parsedContinue[0]
-		archivedContinue = parsedContinue[1]
-	}
+	k8sContinue := req.PaginationOptions.WfContinue
+	archivedContinue := req.PaginationOptions.ArchivedContinue
 
 	listOption := &metav1.ListOptions{}
 	if req.ListOptions != nil {
@@ -221,7 +214,10 @@ func (s *workflowServer) ListWorkflows(ctx context.Context, req *workflowpkg.Wor
 	// we make no promises about the overall list sorting, we just sort each page
 	sort.Sort(wfList.Items)
 
-	res := &wfv1.WorkflowList{ListMeta: metav1.ListMeta{Continue: fmt.Sprintf("%s,%s", wfList.Continue, archivedWfList.Continue), ResourceVersion: wfList.ResourceVersion}, Items: wfList.Items}
+	res := &wfv1.WorkflowList{ListMeta: metav1.ListMeta{ResourceVersion: wfList.ResourceVersion}, Items: wfList.Items, PaginationOptions: wfv1.WorkflowPaginationOptions{
+		WfContinue:       wfList.ListMeta.Continue,
+		ArchivedContinue: archivedWfList.ListMeta.Continue,
+	}}
 	newRes := &wfv1.WorkflowList{}
 	if ok, err := cleaner.Clean(res, &newRes); err != nil {
 		return nil, sutils.ToStatusError(fmt.Errorf("unable to CleanFields in request: %w", err), codes.Internal)

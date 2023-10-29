@@ -1,7 +1,9 @@
-export interface Pagination {
-    offset: string;
+export interface WorkflowsPagination {
+    wfOffset: string;
+    archivedOffset: string;
+    nextWfOffset: string;
+    nextArchivedOffset: string;
     limit: number;
-    nextOffset: string;
 }
 
 export function parseLimit(str: string) {
