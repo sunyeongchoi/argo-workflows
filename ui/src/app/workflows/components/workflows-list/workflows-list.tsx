@@ -10,13 +10,12 @@ import {CostOptimisationNudge} from '../../../shared/components/cost-optimisatio
 import {ErrorNotice} from '../../../shared/components/error-notice';
 import {ExampleManifests} from '../../../shared/components/example-manifests';
 import {Loading} from '../../../shared/components/loading';
-import {PaginationPanel} from '../../../shared/components/pagination-panel';
 import {useCollectEvent} from '../../../shared/components/use-collect-event';
 import {ZeroState} from '../../../shared/components/zero-state';
 import {Context} from '../../../shared/context';
 import {historyUrl} from '../../../shared/history';
 import {ListWatch, sortByYouth} from '../../../shared/list-watch';
-import {Pagination, parseLimit} from '../../../shared/pagination';
+import {Pagination, parseLimit} from '../../pagination';
 import {ScopedLocalStorage} from '../../../shared/scoped-local-storage';
 import {services} from '../../../shared/services';
 import {Utils} from '../../../shared/utils';
@@ -26,6 +25,7 @@ import {WorkflowFilters} from '../workflow-filters/workflow-filters';
 import {WorkflowsRow} from '../workflows-row/workflows-row';
 import {WorkflowsSummaryContainer} from '../workflows-summary-container/workflows-summary-container';
 import {WorkflowsToolbar} from '../workflows-toolbar/workflows-toolbar';
+import {WorkflowPaginationPanel} from '../workflow-pagination-panel/workflow-pagination-panel';
 
 require('./workflows-list.scss');
 
@@ -56,8 +56,9 @@ export function WorkflowsList({match, location, history}: RouteComponentProps<an
     const [pagination, setPagination] = useState<Pagination>(() => {
         const savedPaginationLimit = storage.getItem('options', {}).paginationLimit || 0;
         return {
-            offset: queryParams.get('name'),
-            limit: parseLimit(queryParams.get('limit')) || savedPaginationLimit || 50
+            offset: queryParams.get('offset'),
+            limit: parseLimit(queryParams.get('limit')) || savedPaginationLimit || 50,
+            nextOffset: ','
         };
     });
     const [phases, setPhases] = useState<WorkflowPhase[]>(() => {
@@ -308,7 +309,7 @@ export function WorkflowsList({match, location, history}: RouteComponentProps<an
                                     );
                                 })}
                             </div>
-                            <PaginationPanel onChange={setPagination} pagination={pagination} numRecords={(filteredWorkflows || []).length} />
+                            <WorkflowPaginationPanel onChange={setPagination} pagination={pagination} numRecords={(filteredWorkflows || []).length} />
                         </>
                     )}
                 </div>
