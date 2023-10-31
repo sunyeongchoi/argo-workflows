@@ -174,8 +174,10 @@ func (s *workflowServer) ListWorkflows(ctx context.Context, req *workflowpkg.Wor
 	if req.ListOptions != nil {
 		listOption = req.ListOptions
 	}
-	listOption.Continue = k8sContinue
+
 	s.instanceIDService.With(listOption)
+
+	listOption.Continue = k8sContinue
 	wfList, err := wfClient.ArgoprojV1alpha1().Workflows(req.Namespace).List(ctx, *listOption)
 	if err != nil {
 		return nil, sutils.ToStatusError(err, codes.Internal)

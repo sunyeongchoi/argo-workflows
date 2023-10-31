@@ -56,7 +56,9 @@ export const WorkflowsService = {
             'items.status.startedAt',
             'items.status.estimatedDuration',
             'items.status.progress',
-            'items.spec.suspend'
+            'items.spec.suspend',
+            'paginationOptions.wfContinue',
+            'paginationOptions.archivedContinue'
         ]
     ) {
         const params = WorkflowsUtils.queryParams({phases, labels, pagination});
