@@ -128,40 +128,11 @@ func (s *workflowServer) GetWorkflow(ctx context.Context, req *workflowpkg.Workf
 	return wf, nil
 }
 
-func mergeWithArchivedWorkflows(liveWfs wfv1.WorkflowList, archivedWfs wfv1.WorkflowList, numWfsToKeep int) *wfv1.WorkflowList {
-	var mergedWfs []wfv1.Workflow
-	var uidToWfs = map[types.UID][]wfv1.Workflow{}
-	for _, item := range liveWfs.Items {
-		uidToWfs[item.UID] = append(uidToWfs[item.UID], item)
+func checkNil(value interface{}) string {
+	if value == nil {
+		return ""
 	}
-	for _, item := range archivedWfs.Items {
-		uidToWfs[item.UID] = append(uidToWfs[item.UID], item)
-	}
-
-	for _, v := range uidToWfs {
-		// The archived workflow we saved in the database have "Persisted" as the archival status.
-		// Prioritize 'Archived' over 'Persisted' because 'Archived' means the workflow is in the cluster
-		if len(v) == 1 {
-			mergedWfs = append(mergedWfs, v[0])
-		} else {
-			if ok := v[0].Labels[common.LabelKeyWorkflowArchivingStatus] == "Archived"; ok {
-				mergedWfs = append(mergedWfs, v[0])
-			} else {
-				mergedWfs = append(mergedWfs, v[1])
-			}
-		}
-	}
-	mergedWfsList := wfv1.WorkflowList{Items: mergedWfs, ListMeta: liveWfs.ListMeta}
-	sort.Sort(mergedWfsList.Items)
-	numWfs := 0
-	var finalWfs []wfv1.Workflow
-	for _, item := range mergedWfsList.Items {
-		if numWfsToKeep == 0 || numWfs < numWfsToKeep {
-			finalWfs = append(finalWfs, item)
-			numWfs += 1
-		}
-	}
-	return &wfv1.WorkflowList{Items: finalWfs, ListMeta: liveWfs.ListMeta}
+	return value.(string)
 }
 
 func (s *workflowServer) ListWorkflows(ctx context.Context, req *workflowpkg.WorkflowListRequest) (*wfv1.WorkflowList, error) {
@@ -173,26 +144,45 @@ func (s *workflowServer) ListWorkflows(ctx context.Context, req *workflowpkg.Wor
 	listOption := &metav1.ListOptions{}
 	if req.ListOptions != nil {
 		listOption = req.ListOptions
+
 	}
 
 	s.instanceIDService.With(listOption)
 
 	listOption.Continue = k8sContinue
+	listOption.LabelSelector = fmt.Sprintf("%s!=%s", common.LabelKeyWorkflowArchivingStatus, "Persisted")
 	wfList, err := wfClient.ArgoprojV1alpha1().Workflows(req.Namespace).List(ctx, *listOption)
 	if err != nil {
 		return nil, sutils.ToStatusError(err, codes.Internal)
 	}
-	listOption.Continue = archivedContinue
-	archivedWfList, err := s.wfArchiveServer.ListArchivedWorkflows(ctx, &workflowarchivepkg.ListArchivedWorkflowsRequest{
-		ListOptions: listOption,
-		NamePrefix:  "",
-		Namespace:   req.Namespace,
-	})
-	if err != nil {
-		log.Warnf("unable to list archived workflows:%v", err)
-	} else {
-		if archivedWfList != nil {
-			wfList = mergeWithArchivedWorkflows(*wfList, *archivedWfList, int(listOption.Limit))
+
+	log.Error("wfList.Items!!!!", len(wfList.Items))
+	limit := listOption.Limit
+	var mergedWfs []wfv1.Workflow
+	for _, item := range wfList.Items {
+		mergedWfs = append(mergedWfs, item)
+	}
+
+	//var archivedWfList *wfv1.WorkflowList
+	archivedWfList := &wfv1.WorkflowList{
+		Items: []wfv1.Workflow{},
+		ListMeta: metav1.ListMeta{
+			Continue: "",
+		},
+	}
+	if int64(len(mergedWfs)) < limit {
+		listOption.Continue = archivedContinue
+		listOption.Limit = limit - int64(len(mergedWfs))
+		archivedWfList, err = s.wfArchiveServer.ListArchivedWorkflows(ctx, &workflowarchivepkg.ListArchivedWorkflowsRequest{
+			ListOptions: listOption,
+			NamePrefix:  "",
+			Namespace:   req.Namespace,
+		})
+		if err != nil {
+			log.Warnf("unable to list archived workflows:%v", err)
+		}
+		for _, item := range archivedWfList.Items {
+			mergedWfs = append(mergedWfs, item)
 		}
 	}
 
@@ -217,8 +207,8 @@ func (s *workflowServer) ListWorkflows(ctx context.Context, req *workflowpkg.Wor
 	sort.Sort(wfList.Items)
 
 	res := &wfv1.WorkflowList{ListMeta: metav1.ListMeta{ResourceVersion: wfList.ResourceVersion}, Items: wfList.Items, PaginationOptions: wfv1.WorkflowPaginationOptions{
-		WfContinue:       wfList.ListMeta.Continue,
-		ArchivedContinue: archivedWfList.ListMeta.Continue,
+		WfContinue:       checkNil(wfList.ListMeta.Continue),
+		ArchivedContinue: checkNil(archivedWfList.ListMeta.Continue),
 	}}
 	newRes := &wfv1.WorkflowList{}
 	if ok, err := cleaner.Clean(res, &newRes); err != nil {
